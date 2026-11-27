@@ -1,0 +1,108 @@
+
+name: Pipeline CI-CD Gestion Produits
+
+# Déclenchement du pipeline
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+# Permissions générales
+permissions:
+  contents: read
+
+jobs:
+
+  # =================================
+  # JOB 1 : VERIFICATION ET CREATION
+  # =================================
+  verification:
+    name: Verification et Build
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # Etape 1 : Recuperer le projet
+      - name: Recuperer le code source
+        uses: actions/checkout@v4
+
+      # Etape 2 : Verifier les fichiers
+      - name: Verifier les fichiers du projet
+        run: |
+          test -f index.html
+          test -f style.css
+          test -f script.js
+          echo "Tous les fichiers existent"
+
+      # Etape 3 : Verifier la structure HTML
+      - name: Verifier le HTML
+        run: |
+          grep -qi "<!DOCTYPE html>" index.html
+          grep -qi "<html" index.html
+          grep -qi "<body" index.html
+          echo "Structure HTML de base valide"
+
+      # Etape 4 : Verifier JavaScript
+      - name: Verifier JavaScript
+        run: |
+          node --check script.js
+          echo "Syntaxe JavaScript valide"
+
+      # Etape 5 : Preparer le dossier de livraison
+      - name: Preparer le dossier dist
+        run: |
+          mkdir dist
+          cp index.html style.css script.js dist/
+
+      # Etape 6 : Creer une archive ZIP
+      - name: Creer archive ZIP
+        run: |
+          cd dist
+          zip -r ../gestion-produits.zip .
+          cd ..
+
+      # Etape 7 : Publier l'archive
+      - name: Publier archive ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-gestion-produits
+          path: gestion-produits.zip
+
+      # Etape 8 : Preparer les fichiers pour GitHub Pages
+      - name: Publier les fichiers du site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  # =================================
+  # JOB 2 : DEPLOIEMENT
+  # =================================
+  deploiement:
+    name: Deploiement GitHub Pages
+
+    # Executer apres la verification
+    needs: verification
+
+    # Deployer uniquement apres un push sur main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+
+      # Etape 9 : Deployer le site
+      - name: Deployer sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
